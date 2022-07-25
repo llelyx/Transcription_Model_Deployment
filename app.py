@@ -1,10 +1,13 @@
-from fastapi import Request,FastAPI
-from pydantic import BaseModel
+import shutil
+from fastapi import FastAPI, File, UploadFile, Depends, Body, Request
 import uvicorn
+from pydantic import BaseModel
 
 from transformers.pipelines import pipeline
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoModelForCTC, AutoProcessor
 import torch
+import librosa
+import soundfile as sf
 
 
 app = FastAPI()
@@ -13,37 +16,42 @@ torch_device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print ("Device ", torch_device)
 torch.set_grad_enabled(False)
 
-
-tokenizer = AutoTokenizer.from_pretrained("./distilbart-cnn-12-6")
-model = AutoModelForSeq2SeqLM.from_pretrained("./distilbart-cnn-12-6").to(torch_device)
-model = model.to(torch_device)
+processor = AutoTokenizer.from_pretrained("./wav2vec2_fine_tuned_fr")
+model = AutoModelForSeq2SeqLM.from_pretrained("./wav2vec2_fine_tuned_fr").to(torch_device)
 
 
-class SummaryRequest(BaseModel):
-    text: str
-    min_length: int
-    max_length: int
+def transcription(audio,processor,model):
+  speech, _ = librosa.load(audio, sr=16000, mono=True)
+  inputs = processor(speech, sampling_rate=16_000, return_tensors="pt", padding=True)
+  with torch.no_grad():
+    logits = model(inputs.input_values, attention_mask=inputs.attention_mask).logits
+  pred = processor.batch_decode(logits.numpy()).text[0]
+  return {'transcription':pred}
 
-def get_summary(t,tokenizer_summary,model_summary):
-  txt = t['text']
-  minl = t['min_length'] #75
-  maxl = t['max_length'] #150
-  inputs = tokenizer_summary([txt], max_length=1024,truncation=True, return_tensors='pt').to(torch_device)
-  summary_ids = model_summary.generate(inputs['input_ids'], num_beams=3,num_return_sequences=1,no_repeat_ngram_size=2, min_length = minl,max_length=maxl, early_stopping=True)
-  dec = [tokenizer_summary.decode(ids,skip_special_tokens=True, clean_up_tokenization_spaces=True) for ids in summary_ids]
-  output = dec[0].strip()
-  return {'summary':output}
+class Transcription:
 
+    def __init__(self, audio_path : str):
+        self.audio_path = audio_path
+        self.speech_rate = 16000
 
+    def transcription(self, long_model, long_processor):
+        speech, _ = librosa.load(self.audio_path, sr=self.speech_rate, mono=True)
+        inputs = long_processor(speech, sampling_rate=16_000, return_tensors="pt", padding=True)
+        with torch.no_grad():
+            logits = long_model(inputs.input_values, attention_mask=inputs.attention_mask).logits
+        pred = long_processor.batch_decode(logits.numpy()).text[0]    
+        return {'transcription' : pred} 
+
+    
 @app.get('/')
 async def home():
     return {"message": "Hello World"}
 
-@app.post("/summary")
-async def getsummary(user_request_in: SummaryRequest):
-    payload = {"text":user_request_in.text,"min_length":user_request_in.min_length,"max_length":user_request_in.max_length}
-    summ = get_summary(payload,tokenizer,model)
-    summ["Device"]= torch_device
-    return summ
-
-
+@app.post("/transcription")
+async def get_transcription(file: UploadFile):
+    audio_path = f"app/media/{file.filename}"
+    with open(audio_path, "wb+") as audio:
+        shutil.copyfileobj(file.file, audio)
+    STT = Transcription(audio_path)
+    pred = STT.transcription(model, processor)
+    return pred
