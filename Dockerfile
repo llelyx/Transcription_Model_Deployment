@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.0-cudnn8-runtime-ubuntu18.04
+FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04
 
 
 #set up environment
@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install --no-install-recommends --no-install-sugge
 RUN apt-get install unzip
 RUN apt-get -y install python3
 RUN apt-get -y install python3-pip
+RUN apt-get install libsndfile1-dev
 
 # Copy our application code
 WORKDIR /var/app
@@ -24,17 +25,3 @@ EXPOSE 80
 
 # Start the app
 CMD ["gunicorn", "-b", "0.0.0.0:80","app:app","--workers","1","-k","uvicorn.workers.UvicornWorker"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
