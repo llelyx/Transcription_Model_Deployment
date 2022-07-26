@@ -16,8 +16,8 @@ torch_device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print ("Device ", torch_device)
 torch.set_grad_enabled(False)
 
-processor = AutoTokenizer.from_pretrained("./wav2vec2_fine_tuned_fr")
-model = AutoModelForSeq2SeqLM.from_pretrained("./wav2vec2_fine_tuned_fr").to(torch_device)
+processor = AutoProcessor.from_pretrained("./wav2vec2_fine_tuned_fr")
+model = AutoModelForCTC.from_pretrained("./wav2vec2_fine_tuned_fr").to(torch_device)
 
 
 def transcription(audio,processor,model):
@@ -49,7 +49,7 @@ async def home():
 
 @app.post("/transcription")
 async def get_transcription(file: UploadFile):
-    audio_path = f"app/media/{file.filename}"
+    audio_path = f"media/{file.filename}"
     with open(audio_path, "wb+") as audio:
         shutil.copyfileobj(file.file, audio)
     STT = Transcription(audio_path)
