@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install --no-install-recommends --no-install-sugge
 RUN apt-get install unzip
 RUN apt-get -y install python3
 RUN apt-get -y install python3-pip
-RUN apt-get install libsndfile1-dev
+RUN DEBIAN_FRONTEND=noninteractive TZ="Europe/Paris" apt-get -y install libsndfile1-dev
 
 # Copy our application code
 WORKDIR /var/app
@@ -15,6 +15,7 @@ WORKDIR /var/app
 COPY . .
 
 
+RUN pip3 uninstall numpy
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 ENV LC_ALL=C.UTF-8
