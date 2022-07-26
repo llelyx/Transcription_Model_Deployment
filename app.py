@@ -12,17 +12,15 @@ import soundfile as sf
 
 app = FastAPI()
 
-torch_device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print ("Device ", torch_device)
-torch.set_grad_enabled(False)
+torch_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 processor = AutoProcessor.from_pretrained("./wav2vec2_fine_tuned_fr")
-model = AutoModelForCTC.from_pretrained("./wav2vec2_fine_tuned_fr").to(torch_device)
+model = AutoModelForCTC.from_pretrained("./wav2vec2_fine_tuned_fr")
 
 
 def transcription(audio,processor,model):
   speech, _ = librosa.load(audio, sr=16000, mono=True)
-  inputs = processor(speech, sampling_rate=16_000, return_tensors="pt", padding=True)
+  inputs = processor(speech, sampling_rate=16_000, return_tensors="pt", padding=True).to(torch_device)
   with torch.no_grad():
     logits = model(inputs.input_values, attention_mask=inputs.attention_mask).logits
   pred = processor.batch_decode(logits.numpy()).text[0]
